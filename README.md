@@ -109,6 +109,8 @@ dns-sinkhole/
     dnsclient.py                ← Test client (python tools/dnsclient.py)
     loadtest.py                 ← Multi-threaded load test
     fake_upstream.py            ← Offline fake resolver (UDP + TCP), used by tests
+    capture_pcap.py             ← Records real exchanges to a .pcap + annotated dump
+    crossvalidate.py            ← Compares answers with 8.8.8.8
     demo.ps1                    ← PowerShell demo script
   docs/
     DESIGN.md                   ← Architecture and design decisions

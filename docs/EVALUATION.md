@@ -93,6 +93,68 @@ O(labels) trie walk. 100k entries load in under the 2 s target.
 **Memory:** a full cache (10,000 entries, 2 A records each) holds about
 10.5 MB (tracemalloc).
 
+**Real blocklist: StevenBlack unified hosts** (file dated 27 Oct 2026,
+2.3 MB, 75,951 unique domains per its header):
+
+| Check | Result |
+|---|---|
+| Domains loaded | **75,951**, exactly the count the file's header states |
+| Load time | 215–233 ms (3 runs); 231 ms at server startup; 321 ms for a live reload via the dashboard API |
+| Lookup | 0.73 µs per name |
+| Subdomains of listed domains blocked | 20,000 / 20,000 sampled |
+| False positives | 0 out of 20,000 clean names |
+| Header entries (`localhost`, `local`, `0.0.0.0`, `broadcasthost`) | not blocked (skipped by the loader) |
+| Live server | `ad.doubleclick.net`, `googleadservices.com` → `0.0.0.0`; `github.com` resolves normally |
+
+To use it: download `https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts`
+into `blocklists/` and add it to `hosts_files` in `config.toml`.
+
+## Cross-validation against 8.8.8.8
+
+`python tools/crossvalidate.py --port 5353` asks the sinkhole and Google
+Public DNS the same 13 questions and compares the RCODE and record data.
+TTLs are ignored because the sinkhole returns the remaining cache TTL. For
+SOA records only the server names are compared, since zone serials change
+constantly. Result: **13 / 13 match**. Full table:
+[crossvalidation.md](crossvalidation.md).
+
+Types covered: A, AAAA, NS, SOA, MX, TXT, a CNAME chain
+(`www.github.com`), NODATA (`does-not-exist-….example.com`) and NXDOMAIN
+(`no-such-domain-58213x.com`).
+
+## Packet capture (Wireshark evidence)
+
+[capture.pcap](capture.pcap) holds 6 packets: a forwarded query, a cache
+hit and a blocked query for `example.com` / `ads.example-ads.test`, each
+with its reply. Server port 53, so Wireshark labels it as DNS. Open it with
+*File → Open* in Wireshark; this needs Wireshark only, not Npcap.
+[capture_annotated.txt](capture_annotated.txt) has the same bytes broken
+down field by field.
+
+How it was made: `tools/capture_pcap.py` sends the queries to the running
+sinkhole and writes the exact DNS bytes it sent and received into a libpcap
+file (link type RAW/IPv4). The IPv4 and UDP headers around the DNS payload
+are rebuilt by the script: valid IPv4 checksum, UDP checksum 0 ("not
+computed", allowed for IPv4). It is **not a kernel capture**, because live
+loopback capture on Windows needs the Npcap driver. To add a true live
+capture, install Wireshark with Npcap (enable "loopback support"), capture
+on *Adapter for loopback traffic capture* with filter `udp.port == 53`, and
+run the same script.
+
+What the reply to query #1 shows (61 bytes):
+
+```
+83 5c | 81 80 | 00 01 | 00 02 | 00 00 | 00 00      header: ID, flags, QD=1 AN=2 NS=0 AR=0
+07 65 78 61 6d 70 6c 65 03 63 6f 6d 00 | 00 01 | 00 01   question: example.com A IN (offset 12)
+c0 0c | 00 01 | 00 01 | 00 00 01 2c | 00 04 | ac 42 93 f3   answer 1: pointer 0xC00C, A, IN, TTL 300, 4 bytes
+c0 0c | ...                                                 answer 2: pointer 0xC00C again
+```
+
+Flags `0x8180` = QR=1 (response), RD=1, RA=1, RCODE=0. The blocked reply's
+flags are `0x8580`, which also sets AA=1: the sinkhole answers for blocked
+names itself. In the capture, the forwarded reply took 45.8 ms and the
+cache hit 0.67 ms.
+
 ## Acceptance tests status (2026-10-28)
 
 | # | Result | Evidence |
