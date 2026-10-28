@@ -124,36 +124,64 @@ Types covered: A, AAAA, NS, SOA, MX, TXT, a CNAME chain
 
 ## Packet capture (Wireshark evidence)
 
-[capture.pcap](capture.pcap) holds 6 packets: a forwarded query, a cache
-hit and a blocked query for `example.com` / `ads.example-ads.test`, each
-with its reply. Server port 53, so Wireshark labels it as DNS. Open it with
-*File → Open* in Wireshark; this needs Wireshark only, not Npcap.
-[capture_annotated.txt](capture_annotated.txt) has the same bytes broken
-down field by field.
+### Live capture: [capture_live.pcapng](capture_live.pcapng)
 
-How it was made: `tools/capture_pcap.py` sends the queries to the running
-sinkhole and writes the exact DNS bytes it sent and received into a libpcap
-file (link type RAW/IPv4). The IPv4 and UDP headers around the DNS payload
-are rebuilt by the script: valid IPv4 checksum, UDP checksum 0 ("not
-computed", allowed for IPv4). It is **not a kernel capture**, because live
-loopback capture on Windows needs the Npcap driver. To add a true live
-capture, install Wireshark with Npcap (enable "loopback support"), capture
-on *Adapter for loopback traffic capture* with filter `udp.port == 53`, and
-run the same script.
+Captured with Wireshark 4.6.9 / Npcap 1.88 (`tshark`) on two interfaces at
+once:
 
-What the reply to query #1 shows (61 bytes):
+- *Adapter for loopback traffic capture*, filter `port 53`: client ↔ sinkhole
+- *Wi-Fi*, filter `host 8.8.8.8 and port 53`: sinkhole ↔ upstream
+
+The sinkhole ran on port 53 so Wireshark labels the traffic as DNS (it
+treats 5353 as mDNS). The capture has 29 frames and Wireshark reports
+**0 malformed or error frames**.
+
+| Frames | What happens | What it shows |
+|---|---|---|
+| 1 → 2 → 4 → 3 | Client asks `example.com A` (ID `0x5eca`). The sinkhole asks 8.8.8.8 with **ID `0x001b`** from source port 61886, gets the answer, and replies to the client with **`0x5eca` restored** | R6: random upstream ID, fresh socket, client ID restored. Wireshark: "Time: 66.6 ms" |
+| 5–6 | Same query again | Cache hit: **no upstream packet**, reply 0.6 ms after the query |
+| 7–8 | `ads.example-ads.test A` | Blocked: no upstream packet; reply `0.0.0.0`, TTL 60, flags `0x8580` (AA=1) |
+| 9–23 | `github.com A` over **TCP** (handshake, 2-byte length framing, close) | R7a: TCP listener. Upstream query uses ID `0x3ba5` from another fresh port (52854) |
+| 24–29 | Real `nslookup ads.example-ads.test 127.0.0.1` | nslookup's PTR query (NXDOMAIN via upstream), then A and AAAA, both sinkholed (`0.0.0.0` / `::`) |
+
+Frame 3, the forwarded reply as Wireshark shows it (DNS part starts at
+`5e ca`):
 
 ```
-83 5c | 81 80 | 00 01 | 00 02 | 00 00 | 00 00      header: ID, flags, QD=1 AN=2 NS=0 AR=0
-07 65 78 61 6d 70 6c 65 03 63 6f 6d 00 | 00 01 | 00 01   question: example.com A IN (offset 12)
-c0 0c | 00 01 | 00 01 | 00 00 01 2c | 00 04 | ac 42 93 f3   answer 1: pointer 0xC00C, A, IN, TTL 300, 4 bytes
-c0 0c | ...                                                 answer 2: pointer 0xC00C again
+0020  5e ca 81 80 00 01 00 02 00 00 00 00 07 65 78 61   ^............exa
+0030  6d 70 6c 65 03 63 6f 6d 00 00 01 00 01 c0 0c 00   mple.com........
+0040  01 00 01 00 00 01 2c 00 04 ac 42 93 f3 c0 0c 00   ......,...B.....
+0050  01 00 01 00 00 01 2c 00 04 68 14 17 9a            ......,..h...
 ```
 
-Flags `0x8180` = QR=1 (response), RD=1, RA=1, RCODE=0. The blocked reply's
-flags are `0x8580`, which also sets AA=1: the sinkhole answers for blocked
-names itself. In the capture, the forwarded reply took 45.8 ms and the
-cache hit 0.67 ms.
+- `5e ca` ID · `81 80` flags (QR=1, RD=1, RA=1, RCODE=0) · `00 01 00 02 00 00 00 00` = QD 1, AN 2, NS 0, AR 0
+- `07 example 03 com 00` is the question name, at DNS offset 12, then type A, class IN
+- `c0 0c` is each answer's owner name: a **compression pointer to offset 12**
+- `00 00 01 2c` TTL 300 · `00 04` RDLENGTH · `ac 42 93 f3` = 172.66.147.243
+
+**Screenshots for the report:** open `capture_live.pcapng` in Wireshark.
+1. Display filter `dns`, select frame 3, and expand *Domain Name System →
+   Flags* and *Answers*. Click the answer's *Name* field: the bytes pane
+   highlights `c0 0c`.
+2. Add the column `dns.id` (right-click Transaction ID → *Apply as Column*)
+   to show the ID changing from `0x5eca` to `0x001b` and back across frames
+   1 → 2 → 4 → 3.
+3. Filter `tcp.port == 53` to show the TCP exchange.
+
+To capture again: start `python -m dnssink --port 53`, then run
+```
+D:\Wireshark\tshark.exe -i "Adapter for loopback traffic capture" -f "port 53" -i Wi-Fi -f "host 8.8.8.8 and port 53" -a duration:25 -w docs\capture_live.pcapng
+```
+and in another terminal run `python tools/capture_pcap.py --port 53`.
+
+### Generated capture: [capture.pcap](capture.pcap)
+
+`tools/capture_pcap.py` also writes the bytes it sent and received to
+`capture.pcap` on its own. The DNS payload is exactly what went over the
+socket; the IPv4 and UDP headers are rebuilt by the script. It is useful on
+machines without Npcap. [capture_annotated.txt](capture_annotated.txt)
+breaks those same packets down field by field. The live capture above is
+the primary evidence.
 
 ## Acceptance tests status (2026-10-28)
 
