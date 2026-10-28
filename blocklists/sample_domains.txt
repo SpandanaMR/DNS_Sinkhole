@@ -1,0 +1,27 @@
+# Sample plain domain blocklist
+# Comments and empty lines are ignored
+ads.doubleclick-fake.test
+telemetry.microsoft-fake.test
+adserver.evilcorp.test
+trackers.dataharvest.test
+analytics.spyware.test
+promo.spamnetwork.test
+cdn.adclicker.test
+metrics.userwatcher.test
+popunder.annoying-ads.test
+affiliate.scamtraffic.test
+crypto-miner.pool-fake.test
+ransomware-c2.test
+phish-login.bank-fake.test
+fraudulent-store.test
+malicious-payloads.test
+redirect.ad-broker.test
+beacons.audiencetracking.test
+pixel.retargeting.test
+sync.cookie-match.test
+push.spam-notifications.test
+ad-exchange.bidder-fake.test
+crawler.scraping-bot.test
+survey-scam.test
+free-gift-cards.test
+suspicious-downloads.test

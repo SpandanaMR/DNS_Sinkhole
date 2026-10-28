@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dnssink"
+version = "1.0.0"
+description = "DNS Sinkhole / Caching Resolver written from scratch (standard library only)"
+requires-python = ">=3.11"
+dependencies = []   # standard library only, by design
+
+[project.scripts]
+dnssink = "dnssink.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

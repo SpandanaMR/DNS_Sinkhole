@@ -1,0 +1,27 @@
+# Sample hosts file for DNS Sinkhole
+# Standard hosts format: IP domain [aliases...]
+0.0.0.0 example-ads.test
+0.0.0.0 ads.example-ads.test
+0.0.0.0 tracker.example-ads.test
+0.0.0.0 telemetry.example-ads.test
+0.0.0.0 analytics.example-ads.test
+0.0.0.0 metrics.example-ads.test
+0.0.0.0 banner.example-ads.test
+0.0.0.0 popup.example-ads.test
+0.0.0.0 click.example-ads.test
+0.0.0.0 affiliate.example-ads.test
+0.0.0.0 adservice.google-analytics-fake.test
+0.0.0.0 track.fake-adserver.test
+0.0.0.0 pixel.tracking-beacon.test
+0.0.0.0 spy.telemetry-collector.test
+0.0.0.0 malware-domain-example.test
+0.0.0.0 phishing-test-site.test
+0.0.0.0 badware-download.test
+0.0.0.0 coinminer-web.test
+0.0.0.0 scam-lottery-winner.test
+0.0.0.0 ad-delivery-network.test
+0.0.0.0 dynamic-ads.test
+0.0.0.0 static-tracker.test
+0.0.0.0 user-profiling.test
+0.0.0.0 ad-cdn.example.test
+0.0.0.0 telemetry-gateway.test
